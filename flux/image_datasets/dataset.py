@@ -74,7 +74,7 @@ class CustomImageDataset(Dataset):
             new_w = (w // 32) * 32
             new_h = (h // 32) * 32
             img = img.resize((new_w, new_h))
-            img = torch.from_numpy((np.array(img) / 127.5) - 1)
+            img = torch.from_numpy((np.array(img) / 127.5) - 1)  # [-1, 1]
             img = img.permute(2, 0, 1)
             json_path = self.images[idx].split('.')[0] + '.' + self.caption_type
             if self.caption_type == "json":

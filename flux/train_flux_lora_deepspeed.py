@@ -119,7 +119,7 @@ def main():
     elif args.single_blocks is not None:
         single_blocks_idx = [int(idx) for idx in args.single_blocks.split(",")]
 
-    # Add attention LoRA
+    # 单流双流注意力模块均需要增加LoRA方法
     for name, attn_processor in dit.attn_processors.items():
         match = re.search(r'\.(\d+)\.', name)  # 在name中搜索形如.数字.的模式，并尝试匹配中间的数字，这个变量表示处理器所在的层索引。
         if match:
@@ -146,6 +146,7 @@ def main():
     dit = dit.to(torch.float32)
     dit.train()
     optimizer_cls = torch.optim.AdamW
+    # freeze all params but LoRA
     for n, param in dit.named_parameters():
         if '_lora' not in n:
             param.requires_grad = False
@@ -163,6 +164,7 @@ def main():
     train_dataloader = loader(**args.data_config)
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
+    # 通过 gradient_accumulation_steps 模拟大批量训练
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if args.max_train_steps is None:
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
@@ -176,7 +178,7 @@ def main():
     )
     global_step = 0
     first_epoch = 0
-
+    # 使用 HuggingFace Accelerate 库封装模型、优化器、数据加载器和调度器
     dit, optimizer, _, lr_scheduler = accelerator.prepare(
         dit, optimizer, deepcopy(train_dataloader), lr_scheduler
     )
@@ -189,12 +191,13 @@ def main():
         weight_dtype = torch.bfloat16
         args.mixed_precision = accelerator.mixed_precision
 
-
+    # 训练步数与Epoch数动态调整
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if overrode_max_train_steps:
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
+    # 仅在主进程初始化实验跟踪器（如Weights & Biases、TensorBoard）。
     if accelerator.is_main_process:
         accelerator.init_trackers(args.tracker_project_name, {"test": None})
 
@@ -247,16 +250,22 @@ def main():
     for epoch in range(first_epoch, args.num_train_epochs):
         train_loss = 0.0
         for step, batch in enumerate(train_dataloader):
+            # 启用梯度累积，将多个小批次的梯度累加后再执行参数更新。
             with accelerator.accumulate(dit):
                 img, prompts = batch
                 with torch.no_grad():
+                    # 图像编码:使用VAE将原始图像编码为潜在表示 x_1，降低空间维度（如从256x256→64x64)
                     x_1 = vae.encode(img.to(accelerator.device).to(torch.float32))
+                    # 文本编码:通过 prepare 函数生成文本嵌入(包含T5和CLIP的双编码器)
                     inp = prepare(t5=t5, clip=clip, img=x_1, prompt=prompts)
+                    # 张量重塑:将空间维度展平为序列维度（如64x64→4096）,适配Transformer结构
                     x_1 = rearrange(x_1, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=2, pw=2)
 
                 bs = img.shape[0]
+                # 时间步采样
                 t = torch.tensor([timesteps[random.randint(0, 999)]]).to(accelerator.device)
                 x_0 = torch.randn_like(x_1).to(accelerator.device)
+                # 噪声混合,定义从噪声分布到目标分布的路径
                 x_t = (1 - t) * x_1 + t * x_0
                 bsz = x_1.shape[0]
                 guidance_vec = torch.full((x_t.shape[0],), 1, device=x_t.device, dtype=x_t.dtype)
@@ -269,16 +278,20 @@ def main():
                                 y=inp['vec'].to(weight_dtype),
                                 timesteps=t.to(weight_dtype),
                                 guidance=guidance_vec.to(weight_dtype),)
-
+                # 计算损失函数, 其中model_pred是模型预测的结果，x_0是真实的噪声，x_1是真实的图像
                 loss = F.mse_loss(model_pred.float(), (x_0 - x_1).float(), reduction="mean")
 
                 # Gather the losses across all processes for logging (if we use distributed training).
+                # 收集所有进程的损失值并计算全局均值。
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
                 train_loss += avg_loss.item() / args.gradient_accumulation_steps
 
                 # Backpropagate
+                # 自动处理混合精度下的梯度缩放。
                 accelerator.backward(loss)
+                # 多GPU训练时同步梯度（如使用DDP）。
                 if accelerator.sync_gradients:
+                    # 防止梯度爆炸，限制全局梯度范数。
                     accelerator.clip_grad_norm_(dit.parameters(), args.max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()

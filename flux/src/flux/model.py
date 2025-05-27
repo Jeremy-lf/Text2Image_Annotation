@@ -158,12 +158,13 @@ class Flux(nn.Module):
         if self.params.guidance_embed:
             if guidance is None:
                 raise ValueError("Didn't get guidance strength for guidance distilled model.")
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
-        vec = vec + self.vector_in(y)
-        txt = self.txt_in(txt)
-
+            vec = vec + self.guidance_in(timestep_embedding(guidance, 256))  # time embedding + guidance embedding
+        vec = vec + self.vector_in(y)  # CLIP embedding
+        txt = self.txt_in(txt)  # T5 embedding
+        # img_ids的作用是为图像序列提供位置编码的索引信息, 将文本和图像的位置ID在序列维度（dim=1）拼接，形成联合的位置索引张量。
         ids = torch.cat((txt_ids, img_ids), dim=1)
-        pe = self.pe_embedder(ids)
+        # EmbedND模块根据拼接后的ID生成多维位置编码张量
+        pe = self.pe_embedder(ids) 
         if block_controlnet_hidden_states is not None:
             controlnet_depth = len(block_controlnet_hidden_states)
         for index_block, block in enumerate(self.double_blocks):
