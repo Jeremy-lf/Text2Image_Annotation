@@ -1,0 +1,11 @@
+diffusers
+fairscale
+accelerate
+tensorboard
+transformers
+gradio
+torchdiffeq
+click
+torchvision
+h5py
+opencv-python
