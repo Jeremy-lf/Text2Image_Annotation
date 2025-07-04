@@ -1,7 +1,9 @@
-### 时间步嵌入（Timestep Embedding）
+## 时间步嵌入（Timestep Embedding）
 扩散模型（Diffusion Models）中的时间步嵌入（Timestep Embedding）是模型理解去噪过程中时间信息的关键组件。它通过将离散或连续的时间步 t（通常表示去噪的进度，如从 t=0 到 t=T）映射为高维向量，使模型能够动态调整其行为以适应不同阶段的去噪任务。与Transformer的位置编码不同，这里的时间步可能是非整数（如 t=3.5），因此嵌入需要支持连续值。
 
-#### 1.为什么需要时间步嵌入？
+时间步嵌入通常是一个可学习的或固定的向量。**固定嵌入（如正弦/余弦编码）：** 类似Transformer的位置编码，使用正弦和余弦函数的组合生成频率衰减的嵌入。优点：无需训练，可直接计算。**可学习嵌入（如随机初始化 + 梯度更新）：** 直接定义一个可训练的嵌入矩阵 E∈R T×d，通过E[t]获取嵌入，优点：灵活性高，但需要足够大的T和训练数据。
+
+### 1.为什么需要时间步嵌入？
 扩散模型的核心是通过逐步去噪生成数据。在训练和采样过程中，模型需要根据当前时间步 t 调整其行为：
 - 早期阶段（t≈T）：噪声接近纯高斯噪声，模型需关注全局结构。
 - 后期阶段（t≈0）：噪声接近原始数据，模型需精细调整局部细节。
@@ -12,7 +14,7 @@
 - 在条件生成（如文本到图像）中，时间步嵌入可与条件信息（如文本编码）结合，指导生成过程。
 
 
-#### 2.正余弦编码特点
+### 2.正余弦编码特点
 2.1 频率衰减设计：
 使用指数衰减的频率（max_period^(-i/half)）确保嵌入能捕捉从全局到局部的时间特征：
 - 低频（大周期）捕捉长期趋势。
@@ -26,6 +28,7 @@
 
 ### 代码解读
 ```python
+# sinusoidal
 class TimestepEmbedder(nn.Module):
     """
     Embeds scalar timesteps into vector representations.
@@ -82,6 +85,18 @@ class TimestepEmbedder(nn.Module):
         t_freq = self.timestep_embedding(t, self.frequency_embedding_size)
         t_emb = self.mlp(t_freq.to(self.mlp[0].weight.dtype))
         return t_emb
+
+```
+
+```python
+# learnable embedding
+class LearnableTimestepEmbedding(nn.Module):
+    def __init__(self, max_timesteps, dim):
+        super().__init__()
+        self.embedding = nn.Embedding(max_timesteps, dim)
+    
+    def forward(self, t):
+        return self.embedding(t.long())  # t需为整数
 
 ```
 
