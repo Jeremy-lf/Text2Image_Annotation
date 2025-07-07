@@ -1,0 +1,178 @@
+## 位置编码（Position Embedding, PE）
+
+在大模型（尤其是Transformer架构）中，位置编码（Positional Encoding）用于捕捉序列中元素的顺序信息，弥补自注意力机制无法直接感知位置关系的缺陷。以下是常用的位置编码类型及其特点：
+
+### 1. **绝对位置编码（Absolute Positional Encoding）**
+   - **正弦/余弦位置编码（Sinusoidal PE）**  
+     - **原理**：使用不同频率的正弦和余弦函数生成位置信息，公式为：
+       $\[
+       PE(pos, 2i) = \sin\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right), \quad PE(pos, 2i+1) = \cos\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right)
+       \]$ 其中pos是位置，i是维度索引，d_model是维度。
+     - **特点**：
+       - 固定编码，不依赖训练数据。
+       - 支持外推（extrapolation），可处理比训练时更长的序列。
+       - 相对位置信息通过线性组合隐式学习。
+     - **应用**：原始Transformer（如BERT、GPT的早期版本）。
+```python
+import torch
+import math
+
+class SinusoidalPositionalEncoding(torch.nn.Module):
+    def __init__(self, dim_model, max_len=512):
+        super().__init__()
+        pe = torch.zeros(max_len, dim_model)
+        position = torch.arange(max_len).unsqueeze(1).float() # e^log(a)=a
+        div_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0) / dim_model))
+        pe[:, 0::2] = torch.sin(position * div_term)  # 偶数位用sin
+        pe[:, 1::2] = torch.cos(position * div_term)  # 奇数位用cos
+        self.register_buffer('pe', pe.unsqueeze(0))  # shape: [1, max_len, dim_model]
+
+    def forward(self, x):
+        # x: [batch_size, seq_len, dim_model]
+        return x + self.pe[:, :x.size(1)]  # 截取到当前序列长度
+```
+   - **可学习绝对位置编码（Learned Absolute PE）**  
+     - **原理**：将位置编码作为可训练参数矩阵，与输入嵌入相加。
+     - **特点**：
+       - 灵活性强，能自动学习适合任务的编码方式。
+       - 但外推能力差，序列长度超过训练范围时性能下降。
+     - **应用**：GPT-2、GPT-3等。
+
+```python
+class LearnedPositionalEncoding(torch.nn.Module):
+    def __init__(self, dim_model, max_len=512):
+        super().__init__()
+        self.pe = torch.nn.Parameter(torch.zeros(max_len, dim_model))  # 可学习参数
+        torch.nn.init.normal_(self.pe, mean=0.0, std=0.02)  # 初始化
+
+    def forward(self, x):
+        # x: [batch_size, seq_len, dim_model]
+        return x + self.pe[:x.size(1)]  # 截取到当前序列长度
+```
+
+
+---
+
+### 2. **相对位置编码（Relative Positional Encoding）**
+   - **原理**：直接建模元素间的相对距离，而非绝对位置。
+   - **典型方法**：
+     - **Transformer-XL的相对位置编码**：  
+       引入可学习的相对位置矩阵，计算注意力时区分相对距离的偏置项。
+     - **DeBERTa的相对位置编码**：  
+       将相对位置拆分为距离和方向（如“前/后”），通过独立参数建模。
+     - **T5的相对位置偏置（Relative Position Bias）**：  
+       在注意力分数中添加与相对距离相关的可学习偏置项。
+   - **特点**：
+     - 更符合语言任务的局部依赖性。
+     - 外推能力有限，但可通过截断或分段处理长序列。
+   - **应用**：Transformer-XL、DeBERTa、T5等。
+
+```python
+class RelativePositionalEncoding(torch.nn.Module):
+    def __init__(self, dim_model, max_len=512):
+        super().__init__()
+        self.max_len = max_len
+        # 相对位置偏置矩阵 (2K+1是相对位置范围，例如[-K, K])
+        self.rel_pos_bias = torch.nn.Parameter(torch.zeros(2 * max_len - 1, dim_model))
+        torch.nn.init.normal_(self.rel_pos_bias, mean=0.0, std=0.02)
+
+    def forward(self, x, attention_scores):
+        # x: [batch_size, seq_len, dim_model]
+        # attention_scores: [batch_size, num_heads, seq_len, seq_len]
+        seq_len = x.size(1)
+        # 生成相对位置索引 (例如seq_len=3时，相对位置为[0,1,2]和[0,-1,-2])
+        rel_pos = torch.arange(seq_len).unsqueeze(0) - torch.arange(seq_len).unsqueeze(1)
+        rel_pos = rel_pos.clamp(-self.max_len + 1, self.max_len - 1) + self.max_len - 1  # 映射到[0, 2K]
+        # 获取相对位置偏置并reshape
+        bias = self.rel_pos_bias[rel_pos].unsqueeze(0)  # [1, seq_len, seq_len, dim_model]
+        # 将偏置投影到注意力头维度（简化版：直接加到注意力分数）
+        bias = bias.mean(dim=-1)  # 假设单头，实际需适配多头
+        return attention_scores + bias
+```
+---
+
+
+### 3. **旋转位置编码（Rotary Positional Encoding, RoPE）**
+   - **原理**：将位置信息嵌入到旋转矩阵中，通过复数运算实现位置感知。公式为：
+     <div align=center> <img src="https://github.com/user-attachments/assets/716f7cba-f889-4b90-91c0-1f4ad8bfc919" width = 40% > </div> 
+     其中 $( \theta_i = 10000^{-2i/d} )$， m是位置。
+   - **特点**：
+     - 显式编码相对位置，且相对位置的计算与绝对位置无关。
+     - 支持外推，长序列性能稳定。
+     - 计算效率高，适合现代硬件。
+   - **应用**：LLaMA、GPT-NeoX、PaLM等主流大模型。
+
+```python
+class RotaryPositionalEncoding(torch.nn.Module):
+    def __init__(self, dim_model, max_len=512):
+        super().__init__()
+        # 生成旋转矩阵的参数
+        position = torch.arange(max_len).float().unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0) / dim_model))
+        self.register_buffer('cos_pos', torch.cos(position * div_term))  # [max_len, dim_model//2]
+        self.register_buffer('sin_pos', torch.sin(position * div_term))  # [max_len, dim_model//2]
+
+    def forward(self, x):
+        # x: [batch_size, seq_len, dim_model]
+        seq_len = x.size(1)
+        x_rope = x.view(*x.shape[:-1], -1, 2)  # [..., dim_model//2, 2]
+        cos_pos = self.cos_pos[:seq_len].unsqueeze(0).unsqueeze(-2)  # [1, seq_len, 1, dim_model//2]
+        sin_pos = self.sin_pos[:seq_len].unsqueeze(0).unsqueeze(-2)
+        # 旋转操作：x_rope * [cos, -sin; sin, cos]
+        x_rope_rotated = torch.stack(
+            [x_rope[..., 0] * cos_pos - x_rope[..., 1] * sin_pos,
+             x_rope[..., 0] * sin_pos + x_rope[..., 1] * cos_pos],
+            dim=-1
+        ).flatten(-2)  # [..., dim_model]
+        return x_rope_rotated
+```
+
+---
+
+
+### 4. **其他变体**
+   - **ALiBi（Attention with Linear Biases）**  
+     - 在注意力分数中添加与距离成反比的线性偏置，替代传统位置编码。
+     - 特点：简单高效，外推能力强，但可能损失部分位置精度。
+     - 应用：GPT-NeoX、Pythia等。
+
+```python
+class ALiBiPositionalBias(torch.nn.Module):
+    def __init__(self, num_heads, max_len=512):
+        super().__init__()
+        self.num_heads = num_heads
+        # 生成ALiBi的斜率（固定或可学习）
+        self.slopes = torch.nn.Parameter(torch.tensor(1 / (2 ** (8 - torch.arange(num_heads).float() / (num_heads - 1)))))
+        self.register_buffer('bias_matrix', torch.tril(torch.ones(max_len, max_len)))
+
+    def forward(self, attention_scores):
+        # attention_scores: [batch_size, num_heads, seq_len, seq_len]
+        seq_len = attention_scores.size(-1)
+        bias = self.bias_matrix[:seq_len, :seq_len].unsqueeze(0).unsqueeze(1)  # [1, 1, seq_len, seq_len]
+        # 缩放偏置：m * slopes * distance
+        distance_matrix = torch.arange(seq_len).unsqueeze(0) - torch.arange(seq_len).unsqueeze(1)  # [seq_len, seq_len]
+        alibi_bias = distance_matrix.unsqueeze(0).unsqueeze(1) * self.slopes.view(1, -1, 1, 1)  # [1, num_heads, seq_len, seq_len]
+        alibi_bias = alibi_bias * bias  # 只保留下三角（因果掩码）
+        return attention_scores + alibi_bias
+```
+
+   - **3D位置编码**  
+     - 结合空间信息（如图像中的像素坐标），通过额外通道或可学习矩阵编码。
+     - 应用：Vision Transformer（ViT）、VideoBERT等。
+
+### **对比总结**
+| **类型**         | **优点**                          | **缺点**                          | **典型模型**       |
+|------------------|-----------------------------------|-----------------------------------|--------------------|
+| 正弦/余弦PE      | 固定编码，支持外推                | 相对位置信息隐式学习              | 原始Transformer    |
+| 可学习绝对PE      | 灵活性强                          | 外推能力差                        | GPT-2              |
+| 相对位置编码      | 显式建模相对距离                  | 实现复杂，外推有限                | Transformer-XL      |
+| RoPE             | 高效外推，相对位置显式计算        | 实现稍复杂                        | LLaMA, GPT-NeoX    |
+| ALiBi            | 简单高效，外推能力强              | 可能损失位置精度                  | GPT-NeoX           |
+
+### **选择建议**
+- **短序列任务**：可学习绝对PE或正弦PE足够。
+- **长序列/外推需求**：优先选择RoPE或ALiBi。
+- **需要显式相对位置**：Transformer-XL或DeBERTa的方案。
+- **计算效率敏感场景**：RoPE或ALiBi更优。
+
+位置编码的选择需结合任务需求、序列长度和模型架构综合考量，现代大模型（如LLaMA系列）普遍采用RoPE以平衡性能与效率。
