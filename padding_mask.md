@@ -14,6 +14,9 @@ src_mask和tgt_mask。Encoder只会看src_mask。Decoder会看src_mask和tgt_tas
 <img width="1796" height="385" alt="image" src="https://github.com/user-attachments/assets/8c647af5-33fe-40b2-a426-c3322eec2ebb" />
 
 
+参考链接：[https://cloud.tencent.com/developer/article/1885829](https://cloud.tencent.com/developer/article/1885829)
+
+
 #### 代码实现
 ```python
 class Batch:
