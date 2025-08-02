@@ -81,8 +81,17 @@
 
 ---
 
-### 3.强化学习（Reinforcement Learning）PPO
-强化学习的目标就是模型可以自我迭代，其损失函数包括两部分构成：1.约束损失，模型回答不要于SFT模型结果偏离太多；2.最佳高分回答；
+### 3.评价模型（Critic Model）
+Critic Model用于预测期望总收益 ，和Actor模型一样，它需要做参数更新。实践中，Critic Model的设计和初始化方式也有很多种，例如和Actor共享部分参数、从RW阶段的Reward Model初始化而来等等。
+
+在RLHF中，我们不仅要训练模型生成符合人类喜好的内容的能力（Actor），也要提升模型对人类喜好量化判断的能力（Critic）。这就是Critic模型存在的意义。
+
+---
+
+### 4.强化学习（Reinforcement Learning）PPO
+强化学习的目标就是模型可以自我迭代，其损失函数包括两部分构成：
+- Actor loss：用于评估Actor是否产生了符合人类喜好的结果;
+- Critic loss：用于评估Critic是否正确预测了人类的喜好;
 
 想达到以上要求，所以设计出了如下一系列的训练方法，一共有四个主要模型，分别是：
 - Actor Model：演员模型，这就是我们想要训练的目标语言模型
@@ -91,10 +100,20 @@
 - Reference Model：参考模型，它的作用是给语言模型增加一些“约束”，防止语言模型训歪，使模型的回答结果最好与之前SFT模型的回答分布相近
 
 Actor与Reference的初始化模型就是SFT模型，Reward与Critic的初始化模型就是Reward模型，其中Actor与Critic在后续训练中需要更新参数，而Reward与Reference Model是参数冻结的。
-<img width="710" height="1000" alt="image" src="https://github.com/user-attachments/assets/18b27c18-ee2b-41b3-91d8-20b821a8d229" center />
+
+<img width="610" height="900" alt="image" src="https://github.com/user-attachments/assets/18b27c18-ee2b-41b3-91d8-20b821a8d229" center />
 
 
 
+
+Ref模型的作用是衡量Actor模型生成的完整响应（response）的质量。如果仅输入"prompt"，Ref模型会生成自己的响应，这与Actor的输出无关，无法直接比较两者分布的差异。输入"prompt + response"是为了让Ref模型在相同的上下文和输出序列下提供评价，确保 ref_log_probs 和 log_probs 可直接比较，从而准确衡量Actor模型生成与参考分布的相似度。这是对齐评估（Alignment Evaluation）中的常见做法。
+
+
+[为什么Ref模型的输入是Actor模型的输出response+prompt](https://yiyan.baidu.com/share/SiCfdxvp5H)
+
+[强化学习详细解读](https://zhuanlan.zhihu.com/p/677607581)
+
+[RLHF解读参考](https://xfyun.csdn.net/68536b31eabc61314fc359f2.html?dp_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6NjI3NTU4LCJleHAiOjE3NTQ2Mzc3MjYsImlhdCI6MTc1NDAzMjkyNiwidXNlcm5hbWUiOiJKZXJlbXlfbGYifQ.SEV6pQC7zFNSMQc7I1XQZazy82sAgavWAMtfoMQWSKY&spm=1001.2101.3001.6650.12&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7Eactivity-12-144420491-blog-148930417.235%5Ev43%5Epc_blog_bottom_relevance_base5&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7Eactivity-12-144420491-blog-148930417.235%5Ev43%5Epc_blog_bottom_relevance_base5&utm_relevant_index=20)
 
 
 ---
