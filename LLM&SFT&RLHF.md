@@ -1,6 +1,5 @@
 ## LLM
 
-
 ### 1.训练
 
 训练流程：预训练、SFT微调、奖励模型、强化学习
@@ -90,8 +89,8 @@ Critic Model用于预测期望总收益 ，和Actor模型一样，它需要做�
 
 ### 4.强化学习（Reinforcement Learning）PPO
 强化学习的目标就是模型可以自我迭代，其损失函数包括两部分构成：
-- Actor loss：用于评估Actor是否产生了符合人类喜好的结果;
-- Critic loss：用于评估Critic是否正确预测了人类的喜好;
+- Actor loss：用于评估Actor是否产生了符合人类喜好的结果; actor_loss=adv(ref_log-log+reward score)
+- Critic loss：用于评估Critic是否正确预测了人类的喜好; cirtic_loss=adv*(value-reward)**2
 
 想达到以上要求，所以设计出了如下一系列的训练方法，一共有四个主要模型，分别是：
 - Actor Model：演员模型，这就是我们想要训练的目标语言模型
@@ -105,10 +104,10 @@ Actor与Reference的初始化模型就是SFT模型，Reward与Critic的初始化
 
 
 
-
 Ref模型的作用是衡量Actor模型生成的完整响应（response）的质量。如果仅输入"prompt"，Ref模型会生成自己的响应，这与Actor的输出无关，无法直接比较两者分布的差异。输入"prompt + response"是为了让Ref模型在相同的上下文和输出序列下提供评价，确保 ref_log_probs 和 log_probs 可直接比较，从而准确衡量Actor模型生成与参考分布的相似度。这是对齐评估（Alignment Evaluation）中的常见做法。
 
 
+[PPO训练细节](https://zhuanlan.zhihu.com/p/672420633)
 [为什么Ref模型的输入是Actor模型的输出response+prompt](https://yiyan.baidu.com/share/SiCfdxvp5H)
 
 [强化学习详细解读](https://zhuanlan.zhihu.com/p/677607581)
@@ -118,8 +117,39 @@ Ref模型的作用是衡量Actor模型生成的完整响应（response）的质�
 
 ---
 
-### 推理
+### 5.DPO
+RLHF通常包含三个步骤：SFT、 Reward Model、 PPO。其缺点比较明显：训练流程繁琐、算法复杂、超参数多和计算量大。DPO（Direct Preference Optimization，直接优化策略）是一种非常高效的RLHF算法。它巧妙地绕过了构建奖励模型和强化学习这两个的繁琐过程，直接通过偏好数据进行微调，效果简单粗暴，在使模型输出更符合人类偏好的同时，极大地缩短了训练时间和难度。
 
+DPO需要的数据与RLHF一致，都是经过人工排序后的QA语料对。主要不同就是损失函数的设计：
+<img width="800" height="388" alt="image" src="https://github.com/user-attachments/assets/80250072-a252-4a42-abe5-656dc3482a1c" />
+
+直接策略优化（DPO）算法巧妙地将reward model和强化学习两个步骤合并，使得训练更加的快速高效，在它的训练过程中Reference参数固定，只对目标语言模型进行参数更新，调试更加简单。
+
+---
+
+
+### 6.RLHF
+
+1. 定义与核心思想
+RLHF（Reinforcement Learning from Human Feedback）是一种结合强化学习与人类反馈的技术，通过引入人类偏好优化模型行为。其核心在于将人类对模型输出的评价（如排序、打分）转化为奖励信号，指导模型生成更符合人类期望的响应。这一方法解决了传统强化学习在复杂任务（如自然语言生成）中设计有效奖励函数的难题。
+
+2. 技术原理与实现步骤
+RLHF的实现通常分为三个阶段：
+
+- 监督微调（SFT）：使用少量标注数据对预训练模型（如GPT-3）进行初步微调，使其适应特定任务。
+- 奖励模型训练：收集人类对模型输出的偏好数据（如对同一问题的多个回答进行排序），训练一个奖励模型（Reward Model）。该模型输入模型输出文本，输出一个标量分数，量化输出质量。
+- 强化学习微调：基于奖励模型的反馈，使用强化学习算法（如PPO）微调模型策略，鼓励生成高奖励输出，抑制低质量响应。例如，OpenAI的ChatGPT通过PPO算法优化策略，同时引入KL惩罚项防止模型过度偏离初始分布。
+
+
+### 7.强化学习
+强化学习是机器学习的三大范式之一，通过智能体（Agent）与环境交互，根据环境反馈的奖励信号学习最优策略，以最大化长期累积奖励。其核心要素包括：
+- 智能体：决策主体（如机器人、AI模型）。
+- 环境：智能体外部的所有交互对象（如游戏场景、物理世界）。
+- 状态（State）：环境在特定时间点的描述（如棋盘布局、传感器数据）。
+- 动作（Action）：智能体可采取的决策（如移动、输出文本）。
+- 奖励（Reward）：环境对动作的即时反馈（如得分、惩罚）。
+- 策略（Policy）：智能体选择动作的规则（如确定性策略或随机策略）。
+- 价值函数（Value Function）：评估状态或动作的长期回报期望值。
 
 
 [HuggingFace关于Toknizer与Model的解释](https://mp.weixin.qq.com/s?__biz=MzU5MzcwODE3OQ==&mid=2247485590&idx=1&sn=5a79f0e7719c95fafb2a06b374d92b25&chksm=fe0d1d6ac97a947c4e88b8a8d5c8dee52da707a5a7252e5b6717c22512326508469ead61b3e0&cur_album_id=1343689864403042305&scene=189#wechat_redirect)
