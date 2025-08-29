@@ -32,7 +32,7 @@ L_{L1} = \frac{1}{n} \sum_{i=1}^{n} |y_i - \hat{y}_i|
 - **Smooth L1 Loss**：结合 L1 和 L2 的优点，在误差较小时使用 L2（平滑梯度），误差较大时使用 L1（避免梯度爆炸）。公式为：SmoothL1=0.5x^2 if |x|<1, else |x|-0.5
 
 
-### **2. GIOU Loss（Generalized Intersection over Union Loss）**
+### [**2. GIOU Loss（Generalized Intersection over Union Loss）**](https://blog.csdn.net/qq_40716944/article/details/135026393)
 
 **动机与背景**  
 IoU（Intersection over Union）是衡量预测框与真实框重叠程度的指标，定义为交集面积与并集面积之比：
