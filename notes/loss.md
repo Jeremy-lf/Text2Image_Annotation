@@ -41,6 +41,7 @@ kl_loss = F.kl_div(Q_normalized.log(), P_normalized, reduction='batchmean')
 print(kl_loss.item())  # 输出：0.376
 ```
 [关于交叉熵的原理概念解释](https://yiyan.baidu.com/share/TSMKaNLsOG)
+
 [关于交叉熵的应用，参考文心一言的解释](https://yiyan.baidu.com/share/S2WRymRGXk)
 
 ## 3.DPO损失函数
