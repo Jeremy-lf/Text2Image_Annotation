@@ -1,5 +1,6 @@
 ![image](https://github.com/user-attachments/assets/436c6aeb-fcac-42ac-b763-60e4db663fa1)
 
+## [PPO and GRPO](https://www.zhihu.com/question/12933942086/answer/116987640415)
 强化学习（RL）已被证明在监督微调（SFT）阶段后能有效地进一步提高LLM的数学推理能力。在本节中，我们将介绍我们高效且有效的RL算法——组相对策略优化（GRPO）。 
 Proximal Policy Optimization（PPO）是一种行为评价RL算法，广泛应用于LLM的RL微调阶段。特别是，它通过最大化以下替代目标来优化LLM：
 
