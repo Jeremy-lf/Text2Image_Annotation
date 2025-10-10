@@ -44,6 +44,155 @@ print(kl_loss.item())  # 输出：0.376
 
 [关于交叉熵的应用，参考文心一言的解释](https://yiyan.baidu.com/share/S2WRymRGXk)
 
+
+## 3.JS散度
+JS散度（Jensen-Shannon Divergence，简称JSD）是一种用于量化两个概率分布之间相似性的度量工具，在信息论、机器学习等领域有着广泛应用。JS散度是基于KL散度（Kullback-Leibler Divergence）的对称化改进版本。KL散度的定义是D_KL(P||Q) = Σ P(x) log(P(x)/Q(x))，而JS散度则是(D_KL(P||M) + D_KL(Q||M))/2，其中M是P和Q的平均分布，即M=(P+Q)/2。
+
+JS散度具有以下关键性质，使其在实际应用中更具优势：
+
+1. **对称性**  
+   JS散度满足 \( D_{\text{JS}}(P \parallel Q) = D_{\text{JS}}(Q \parallel P) \)，而KL散度是非对称的（即 \( D_{\text{KL}}(P \parallel Q) \neq D_{\text{KL}}(Q \parallel P) \)）。这一对称性使得JS散度在比较分布时更直观，无需考虑方向性。
+
+2. **有界性**  
+   JS散度的取值范围为 \( [0, 1] \)。当且仅当 \( P = Q \) 时，JS散度为0；当两个分布完全不重叠时，JS散度趋近于1。相比之下，KL散度在分布不重叠时可能趋向无穷大，导致数值不稳定。
+
+3. **稳定性**  
+   JS散度通过引入平均分布，避免了KL散度在分布不重叠时出现的无限值问题，从而在优化过程中（如梯度下降）表现更稳定。
+
+JS散度因其对称性和稳定性，在多个领域得到广泛应用：
+
+1. **生成对抗网络（GANs）**  
+   GANs的核心是通过生成器和判别器的对抗训练，使生成分布逼近真实分布。原始GAN的损失函数基于JS散度，用于衡量生成分布与真实分布的差异。尽管后续改进（如WGAN）引入了Wasserstein距离，但JS散度仍是理解GAN训练机制的重要基础。
+
+2. **自然语言处理（NLP）**  
+   JS散度可用于比较文档或主题的词频分布，辅助文本分类、主题建模等任务。例如，通过计算不同文档的词频分布JS散度，可以量化它们在语义上的相似性。
+
+3. **图像处理**  
+   在图像分割和分类中，JS散度可用于比较图像区域的分布差异。例如，通过计算不同区域像素值分布的JS散度，可以识别目标区域或异常区域。
+
+```
+import numpy as np  
+from scipy.stats import entropy  
+import matplotlib.pyplot as plt  
+  
+# 定义JS散度计算函数  
+def js_divergence(p, q):  
+    m = 0.5 * (p + q)  
+    kl_pm = entropy(p, m)  
+    kl_qm = entropy(q, m)  
+    return 0.5 * kl_pm + 0.5 * kl_qm  
+  
+# 生成两个示例概率分布  
+p = np.array([0.2, 0.5, 0.3])  
+q = np.array([0.3, 0.3, 0.4])  
+  
+# 计算KL散度  
+kl_pq = entropy(p, q)  
+kl_qp = entropy(q, p)  
+  
+# 计算JS散度  
+js_pq = js_divergence(p, q)  
+  
+print("KL散度 (P||Q):", kl_pq)  
+print("KL散度 (Q||P):", kl_qp)  
+print("JS散度 (P,Q):", js_pq)  
+  
+# 数据漂移检测示例  
+# 生成两个时间段的用户行为分布  
+week1 = np.array([0.4, 0.3, 0.3])  
+week2 = np.array([0.2, 0.5, 0.3])  
+  
+# 计算JS散度作为分布差异度量  
+js_week = js_divergence(week1, week2)  
+print("\n周间JS散度:", js_week)  
+  
+# 可视化分布差异  
+def plot_distributions(p, q, title):  
+    x = range(len(p))  
+    plt.bar(x, p, alpha=0.5, label='P')  
+    plt.bar(x, q, alpha=0.5, label='Q')  
+    plt.legend()  
+    plt.title(title)  
+    plt.savefig(f'./{title.replace(" ", "_")}.png')  
+  
+plot_distributions(p, q, '原始分布对比')  
+plot_distributions(week1, week2, '周间分布对比')
+```
+
+```
+import torch  
+import torch.nn as nn  
+import torch.optim as optim  
+  
+# 简化的GAN示例，展示JS散度在损失中的应用  
+class Generator(nn.Module):  
+    def __init__(self):  
+        super(Generator, self).__init__()  
+        self.fc = nn.Sequential(  
+            nn.Linear(10, 16),  
+            nn.ReLU(),  
+            nn.Linear(16, 1)  
+        )  
+      
+    def forward(self, x):  
+        return self.fc(x)  
+  
+class Discriminator(nn.Module):  
+    def __init__(self):  
+        super(Discriminator, self).__init__()  
+        self.fc = nn.Sequential(  
+            nn.Linear(1, 16),  
+            nn.ReLU(),  
+            nn.Linear(16, 1),  
+            nn.Sigmoid()  
+        )  
+      
+    def forward(self, x):  
+        return self.fc(x)  
+  
+# 定义JS散度损失函数（简化版）  
+def js_loss(real_probs, fake_probs):  
+    m = 0.5 * (real_probs + fake_probs)  
+    kl_real = torch.sum(real_probs * torch.log(real_probs / m))  
+    kl_fake = torch.sum(fake_probs * torch.log(fake_probs / m))  
+    return 0.5 * (kl_real + kl_fake)  
+  
+# 初始化模型和优化器  
+generator = Generator()  
+discriminator = Discriminator()  
+optimizer_g = optim.Adam(generator.parameters(), lr=0.001)  
+optimizer_d = optim.Adam(discriminator.parameters(), lr=0.001)  
+  
+# 模拟训练循环  
+for epoch in range(5):  
+    # 生成假数据  
+    z = torch.randn(32, 10)  
+    fake_data = generator(z)  
+      
+    # 真实数据（简化为随机噪声）  
+    real_data = torch.randn(32, 1)  
+      
+    # 判别器训练  
+    optimizer_d.zero_grad()  
+    real_probs = discriminator(real_data)  
+    fake_probs = discriminator(fake_data.detach())  
+      
+    # 计算JS散度损失  
+    d_loss = js_loss(real_probs, fake_probs)  
+    d_loss.backward()  
+    optimizer_d.step()  
+      
+    # 生成器训练  
+    optimizer_g.zero_grad()  
+    fake_probs = discriminator(fake_data)  
+    g_loss = torch.mean(torch.log(1 - fake_probs))  # 简化版生成器损失  
+    g_loss.backward()  
+    optimizer_g.step()  
+      
+    print(f"Epoch {epoch+1}, D_loss: {d_loss.item():.4f}, G_loss: {g_loss.item():.4f}")```
+```
+
+
 ## 3.DPO损失函数
 DPO（Direct Preference Optimization，直接偏好优化）损失是一种用于训练模型以学习用户对不同选项的相对偏好的损失函数。它常用于强化学习或偏好学习场景，特别是在自然语言处理（NLP）任务中，例如对话系统，其中模型需要根据用户反馈来优化其输出。
 
