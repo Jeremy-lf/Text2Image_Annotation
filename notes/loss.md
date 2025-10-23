@@ -337,10 +337,8 @@ InfoNCE（Information Noise-Contrastive Estimation）是一种用于自监督学
    在对比学习中，模型需从一组候选样本中区分出与锚点样本匹配的正样本。InfoNCE 通过 Softmax 函数将相似度得分转化为概率分布，并采用交叉熵损失优化模型参数，使得正样本对的概率远高于所有负样本。
 
 #### **二、数学定义**
-假设一个批次中有 \( N \) 对正样本（如图像-文本对），InfoNCE 损失的公式为：
-$\[
-\mathcal{L}_{\text{InfoNCE}} = -\frac{1}{N} \sum_{i=1}^{N} \log \frac{\exp(\text{sim}(z_i, z_{i+})/\tau)}{\sum_{k=1}^{K} \exp(\text{sim}(z_i, z_k)/\tau)}
-\]$
+假设一个批次中有 \( N \) 对正样本（如图像-文本对），InfoNCE 损失的公式为:
+$L_{\text{InfoNCE}} = -\frac{1}{N} \sum_{i=1}^{N} \log \frac{\exp(\text{sim}(z_i, z_{i+})/\tau)}{\sum_{k=1}^{K} \exp(\text{sim}(z_i, z_k)/\tau)}$
 - **分子**：正样本对（如 $\( z_i \)$ 与 $\( z_{i+} \))$ 的相似度得分，通常使用余弦相似度或点积。
 - **分母**：锚点样本 $\( z_i \)$ 与所有候选样本（包括正样本和 $\( K \)$ 个负样本）的相似度之和。
 - **温度系数 $\( \tau \)$**：调节概率分布的平滑程度。$\( \tau \)$ 越小，模型对困难负样本的关注度越高；$\( \tau \)$ 越大，梯度分布更均匀，训练更稳定但可能收敛更慢。
