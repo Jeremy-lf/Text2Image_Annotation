@@ -3,6 +3,22 @@
 * 分组查询注意力（GQA）：nums_head=N, nums_key_value_head=M（M为分组数，N是M的倍数）
 * 标准多头注意力：nums_head = nums_key_value_head（此时广播操作相当于复制1次，无实际变化）
 
+```python
+class MultiheadAttention(nn.Module):
+    def __init__(self, weights_dim, n_heads):
+        super().__init__()
+        self.qkv_matrices = nn.Linear(weights_dim, 3 * weights_dim)
+        self.linear_layer = nn.Linear(weights_dim, weights_dim)
+
+    def forward(self, x, mask=None):
+        q, k, v = self.qkv_matrices(x).chunk(3, dim=-1)
+        scores = (q @ k.transpose(-1, -2)) / math.sqrt(q.size(-1))
+        if mask is not None:
+            scores += mask
+        attention = torch.softmax(scores, dim=-1) @ v
+        return self.linear_layer(attention)
+
+```
 
 ```python
 class GroupQueryAttention(nn.Module):
