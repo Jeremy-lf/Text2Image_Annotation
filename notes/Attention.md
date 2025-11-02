@@ -4,7 +4,7 @@
 * 标准多头注意力：nums_head = nums_key_value_head（此时广播操作相当于复制1次，无实际变化）
 
 ```python
-class MultiheadAttention(nn.Module):
+class SelfAttention(nn.Module):
     def __init__(self, weights_dim, n_heads):
         super().__init__()
         self.qkv_matrices = nn.Linear(weights_dim, 3 * weights_dim)
@@ -14,11 +14,34 @@ class MultiheadAttention(nn.Module):
         q, k, v = self.qkv_matrices(x).chunk(3, dim=-1)
         scores = (q @ k.transpose(-1, -2)) / math.sqrt(q.size(-1))
         if mask is not None:
-            scores += mask
+            scores = scores.masked_fill(mask == 0, float('-inf'))
         attention = torch.softmax(scores, dim=-1) @ v
         return self.linear_layer(attention)
 
 ```
+
+```python
+class MultiHeadAttention(nn.Module):
+    def __init__(self, n_heads: int = 8, d_model: int = 512):
+        super().__init__()
+        self.n_heads = n_heads
+        self.n_dims = d_model // n_heads
+        self.scale = d_model ** 0.5
+        self.qkv = nn.Linear(d_model, 3 * d_model)
+        self.proj = nn.Linear(d_model, d_model)
+    def forward(self, x):
+        q,k,v = self.qkv(x).chunk(3, dim=-1) # BxNxD
+        q = q.reshape(x.shape[0], x.shape[1], self.n_heads, self.n_dims).permute(0, 2, 1, 3)
+        k = k.reshape(x.shape[0], x.shape[1], self.n_heads, self.n_dims).permute(0, 2, 1, 3)
+        v = v.reshape(x.shape[0], x.shape[1], self.n_heads, self.n_dims).permute(0, 2, 1, 3)
+
+        scores = torch.matmul(q, k.transpose(-1,-2))/self.scale
+        weights = F.softmax(scores, dim=-1)
+        out = torch.matmul(weights, v)
+        out = out.permute(0, 2, 1, 3).reshape(x.shape[0], x.shape[1], -1)
+        return self.proj(out)
+```
+
 
 ```python
 class GroupQueryAttention(nn.Module):
