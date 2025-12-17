@@ -95,5 +95,12 @@ def generate_rails_mask(shape):
 shape = image.shape[:2][::-1]
 output = generate_rails_mask(shape)
 
+draw.line([0, 0, 100, 100], fill='red', width=2) #画一条红色直线。‌
+
+draw.rectangle([60, 60, 120, 80], fill='blue', outline='white') # 画一个蓝色填充的矩形。‌
+
+draw.polygon(xy, fill=None, outline=None)  # 绘制多边形
+
+draw.text((10,10), "Hello", fill='black') # 添加文字
 
 ```
