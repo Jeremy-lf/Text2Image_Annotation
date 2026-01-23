@@ -852,23 +852,6 @@ class Solution(object):
         backtrack(candidates,[])
         return res
 
-class Solution(object):
-    def combinationSum(self, candidates, target):
-        res = []
-        def backtree(candidates, target, tmp, start):
-            # 终止条件
-            if target < 0:
-                return
-            if target == 0:
-                res.append(tmp)
-                return
-            # 遍历所有节点,选择当前节点作为路径的一部分
-            for i in range(start, len(candidates)):
-                # 选择当前节点candidates[i],然后继续往下走
-                backtree(candidates, target - candidates[i], tmp + [candidates[i]], i)
-        backtree(candidates, target, [], 0)
-        return res
-
 """
 22.括号生成
 数字 n 代表生成括号的对数,请你设计一个函数,用于能够生成所有可能的并且 有效的 括号组合。
@@ -878,22 +861,20 @@ class Solution(object):
 
 class Solution:
     def generateParenthesis(self, n: int) -> List[str]:
-        ans = []
-        def backtrack(S, left, right):
-            if len(S) == 2*n:
-                ans.append(''.join(S))
+        res = []
+        def backtree(tmp, left, right):
+            # 终止条件
+            if left == 0 and right == 0:
+                res.append(tmp)
                 return
-            if left < n:
-                S.append('(')
-                backtrack(S, left+1, right)
-                S.pop()
-            # 关键一步,左边括号数量为N了,看右边的
-            if right < left:
-                S.append(')')
-                backtrack(S, left, right+1)
-                S.pop()
-        backtrack([], 0, 0)  
-        return ans
+            # 如果左括号还有剩余,就可以添加左括号
+            if left > 0:
+                backtree(tmp + "(", left - 1, right)
+            # 如果右括号剩余数量大于左括号剩余数量,就可以添加右括号
+            if right > left:
+                backtree(tmp + ")", left, right - 1)
+        backtree("", n, n)
+        return res
 
 """
 79. 单词搜索
