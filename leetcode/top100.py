@@ -918,27 +918,24 @@ class Solution(object):
 输入:s = "aab"
 输出:[["a","a","b"],["aa","b"]]
 """
-
 class Solution:
-    def partition(self, s: str) -> List[List[str]]:
-        n = len(s)
-        ans = []
-
-        # 考虑 s[i:] 怎么分割
-        def dfs(tmp, i):
-            if i == n: # s 分割完毕
-                ans.append(tmp[:]) # 复制 path
-            
-            for j in range(i, n): # 枚举子串的结束位置
-                t = s[i:j+1]  # 分割出子串 t
-                if t == t[::-1]: # 判断 t 是不是回文串
-                    tmp.append(t)
-                    # 考虑剩余的 s[j+1:] 怎么分割
-                    dfs(tmp, j+1)
-                    tmp.pop() # 恢复现场
+    def partition(self, s: str) -> List[List[str]]: 
+        res = []
+        def is_palindrome(subs):
+            return subs == subs[::-1]
         
-        dfs([], 0)
-        return ans
+        def backtree(s, tmp):
+            # 终止条件
+            if not s:
+                res.append(tmp)
+                return
+            # 遍历所有节点,选择当前节点作为路径的一部分
+            for i in range(1, len(s)+1):
+                # 选择当前节点s[:i],然后继续往下走
+                if is_palindrome(s[:i]):
+                    backtree(s[i:], tmp + [s[:i]])
+        backtree(s, [])
+        return res
 
 
 ################################################################
