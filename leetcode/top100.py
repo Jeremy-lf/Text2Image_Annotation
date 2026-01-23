@@ -813,7 +813,22 @@ class Solution:
 给你一个 无重复元素 的整数数组 candidates 和一个目标整数 target ,找出 candidates 中可以使数字和为目标数 target 的 所有 不同组合 ,并以列表形式返回。你可以按 任意顺序 返回这些组合。
 
 """
-
+class Solution(object):
+    def combinationSum(self, candidates, target):
+        res = []
+        def backtree(candidates, tmp):
+            if sum(tmp) == target:
+                res.append(tmp)
+                return
+            if sum(tmp) > target:
+                return
+            # 遍历所有节点,选择当前节点作为路径的一部分
+            for i in range(len(candidates)):
+                # 选择当前节点candidates[i],然后继续往下走
+                backtree(candidates[i:], tmp + [candidates[i]])
+        backtree(candidates, [])
+        return res
+        
 class Solution(object):
     def combinationSum(self, candidates, target):
         """
