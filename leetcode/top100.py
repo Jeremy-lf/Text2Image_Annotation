@@ -837,6 +837,23 @@ class Solution(object):
         backtrack(candidates,[])
         return res
 
+class Solution(object):
+    def combinationSum(self, candidates, target):
+        res = []
+        def backtree(candidates, target, tmp, start):
+            # 终止条件
+            if target < 0:
+                return
+            if target == 0:
+                res.append(tmp)
+                return
+            # 遍历所有节点,选择当前节点作为路径的一部分
+            for i in range(start, len(candidates)):
+                # 选择当前节点candidates[i],然后继续往下走
+                backtree(candidates, target - candidates[i], tmp + [candidates[i]], i)
+        backtree(candidates, target, [], 0)
+        return res
+
 """
 22.括号生成
 数字 n 代表生成括号的对数,请你设计一个函数,用于能够生成所有可能的并且 有效的 括号组合。
