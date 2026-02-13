@@ -231,3 +231,34 @@ class RotaryEmbedding1D(nn.Module):
         k_embed = k * cos + rotate_half(k) * sin
         return q_embed, k_embed
 ```
+
+## 余弦位置编码
+```python
+class PositionalEncoding(nn.Module):
+    """
+    正弦 / 余弦绝对位置编码,接口风格跟 PyTorch Transformer 一致：
+    输入输出形状都是 [seq_len, batch_size, d_model]
+    """
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)  # [max_len, 1]
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float32) *
+            (-math.log(10000.0) / d_model)
+        ) 
+
+        pe = torch.zeros(max_len, d_model, dtype=torch.float32)
+        pe[:, 0::2] = torch.sin(position * div_term)  # 偶数维
+        pe[:, 1::2] = torch.cos(position * div_term)  # 奇数维
+
+        pe = pe.unsqueeze(1)  # [max_len, 1, d_model]
+
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        seq_len = x.size(0)
+        x = x + self.pe[:seq_len] 
+        return self.dropout(x)
+```
