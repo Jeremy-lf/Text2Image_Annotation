@@ -54,35 +54,31 @@ if __name__ == "__main__":
 起始索引等于 0 的子串是 "cba", 它是 "abc" 的异位词。
 起始索引等于 6 的子串是 "bac", 它是 "abc" 的异位词。
 
-滑动窗口:通过维护一个固定长度的窗口（长度为 p_len）,在 s 上滑动,避免每次重新统计整个窗口的字符频率。
-字符频率统计:用长度为 26 的数组表示 26 个小写字母的频率,通过比较两个数组是否相等来判断是否为异位词。
-时间复杂度:O(n),其中 n 是 s 的长度。初始化统计频率为 O(m)（m 是 p 的长度）,滑动窗口遍历为 O(n - m),总体为 O(n)。
-空间复杂度:O(1),使用了固定大小的数组（26 个元素）。
 
 """
 
+# 滑动窗口法,时间复杂度O(n),空间复杂度O(1)
+# 方法:使用滑动窗口,维护一个窗口内的字符频率,当窗口内的字符频率与p的字符频率相同时,
+# 说明找到了一个异位词,记录窗口的起始索引,然后继续移动窗口,直到遍历完整个字符串s
 class Solution:
-    def findAnagrams(self, s: str, p: str) -> List[int]:
-        p_len, s_len = len(p), len(s)
-        if p_len > s_len:
-            return []
-
-        ans = []
-        p_count = [0] * 26
-        s_count = [0] * 26
-        for i in range(p_len):
-            p_count[ord(p[i]) - ord('a')] += 1
-            s_count[ord(s[i]) - ord('a')] += 1
-        if p_count == s_count:
-            ans.append(0)
-
-        for i in range(s_len - p_len):
-            s_count[ord(s[i]) - 97] -= 1
-            s_count[ord(s[i + p_len]) - 97] += 1
-            
+    def findAnagrams(self, s: str, p: str):
+        from collections import Counter
+        p_count = Counter(p)  # 统计p中字符的频率
+        s_count = Counter()   # 统计当前窗口中字符的频率
+        res = []
+        left = 0
+        for right in range(len(s)):
+            s_count[s[right]] += 1  # 将当前字符加入窗口
+            # 当窗口大小超过p的长度时,将左边界向右移动,并更新窗口内字符的频率
+            if right - left + 1 > len(p):
+                s_count[s[left]] -= 1
+                if s_count[s[left]] == 0:
+                    del s_count[s[left]]
+                left += 1
+            # 当窗口内字符的频率与p的字符频率相同时,说明找到了一个异位词,记录窗口的起始索引
             if s_count == p_count:
-                ans.append(i + 1)
-        return ans
+                res.append(left)
+        return res
     
 
 
@@ -218,6 +214,17 @@ class Solution:
                 left += 1
             right += 1
         return nums
+
+    def moveZeroes(self, nums):
+        size = 0
+        # 遍历数组,将非零元素移动到前面,同时记录非零元素的个数
+        for x in nums:
+            if x:
+                nums[size] = x
+                size += 1
+        # 将数组剩余位置补零
+        for i in range(size, len(nums)):
+            nums[i] = 0
         
 """
 11. 盛最多水的容器
@@ -260,41 +267,36 @@ nums[1] + nums[2] + nums[4] = 0 + 1 + (-1) = 0 。
 nums[0] + nums[3] + nums[4] = (-1) + 2 + (-1) = 0 。
 不同的三元组是 [-1,0,1] 和 [-1,-1,2] 。
 注意,输出的顺序和三元组的顺序并不重要。
-
-
 思路:双指针问题, 先排序, 然后双指针, 注意去重
 """
 
+# 双指针法,时间复杂度O(n^2),空间复杂度O(1)
+# 方法:先对数组进行排序,然后遍历数组,固定第一个元素,使用双指针寻找剩余元素,并跳过左右重复元素
 class Solution:
-    def threeSum(self, nums: List[int]) -> List[List[int]]:
-        if(nums == None or len(nums) < 3):
-            return []
-        nums.sort()
+    def threeSum(self, nums):
         res = []
-        for i in range(len(nums)):
-            if(nums[i] > 0):
-                return res
-            # 去重第一部分
-            if(i > 0 and nums[i] == nums[i-1]):
+        nums.sort()  # 先排序
+        n = len(nums)
+        # 遍历数组,固定第一个元素,然后使用双指针寻找剩余元素
+        for i in range(n-2):
+            if i > 0 and nums[i] == nums[i-1]:  # 跳过重复元素
                 continue
-            left, right = i + 1, len(nums) - 1
-            while(left < right):
-                # 因为数组已经排序, 当nums[i]确定后, 整体大于0, 那么只能减小right对应的值
-                if(nums[i] + nums[left] + nums[right] > 0):
-                    right = right - 1
-                # 因为数组已经排序, 当nums[i]确定后, 整体小于0, 那么只能增大left对应的值
-                elif(nums[i] + nums[left] + nums[right] < 0):
-                    left = left + 1
-                else:
+            left, right = i + 1, n - 1  # 双指针
+            while left < right:
+                total = nums[i] + nums[left] + nums[right]
+                # 判断三数之和是否为0,并移动指针
+                if total == 0:
                     res.append([nums[i], nums[left], nums[right]])
-                    # 高效去重第二部分, 一般情况下找到三数之和为0后, 应该左指针右移一位同时右指针左移一位, 然后继续搜索
-                    # 但是题目返回数组要求不能重复, 左指针右移一位后可能值没变, 所以要确定值变为止, 右指针同理
-                    while(left < right and nums[left + 1] == nums[left]):
-                        left = left + 1
-                    while(left < right and nums[right - 1] == nums[right]):
-                        right = right - 1
-                    left = left + 1
-                    right = right - 1
+                    while left < right and nums[left] == nums[left + 1]:  # 跳过重复元素
+                        left += 1
+                    while left < right and nums[right] == nums[right - 1]:  # 跳过重复元素
+                        right -= 1
+                    left += 1
+                    right -= 1
+                elif total < 0:
+                    left += 1
+                else:
+                    right -= 1
         return res
 
 
